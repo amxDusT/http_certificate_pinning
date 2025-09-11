@@ -9,10 +9,12 @@ class CertificatePinningInterceptor extends Interceptor {
   final List<String> _allowedSHAFingerprints;
   final int _timeout;
   final bool callFollowingErrorInterceptor;
+  final bool Function(String)? skipValidation;
   Future<String>? secure = Future.value('');
 
   CertificatePinningInterceptor({
     List<String>? allowedSHAFingerprints,
+    this.skipValidation,
     int timeout = 0,
     this.callFollowingErrorInterceptor = false,
   })  : _allowedSHAFingerprints = allowedSHAFingerprints != null
@@ -36,7 +38,11 @@ class CertificatePinningInterceptor extends Interceptor {
       if (options.path.contains('http') || options.baseUrl.isEmpty) {
         baseUrl = options.path;
       }
-
+      
+      if(skipValidation != null && skipValidation!(baseUrl)){
+        return super.onRequest(options, handler);
+      }
+      
       secure = HttpCertificatePinning.check(
         serverURL: baseUrl,
         headerHttp: {},
