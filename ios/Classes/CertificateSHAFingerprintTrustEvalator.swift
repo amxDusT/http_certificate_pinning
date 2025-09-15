@@ -21,17 +21,17 @@ final class CertificateSHAFingerprintTrustEvaluator: ServerTrustEvaluating {
         SecTrustEvaluate(trust, &result)
         
         let isServerTrusted = (result == .unspecified || result == .proceed)
-        guard isServerTrusted, let certificate = SecTrustGetCertificateAtIndex(trust, 0) else {
+        guard isServerTrusted else {
             throw AFError.serverTrustEvaluationFailed(
                 reason: .trustEvaluationFailed(error: nil)
             )
         }
         
-        let serverCertData = SecCertificateCopyData(certificate) as Data
-        var serverCertSha = serverCertData.sha256().toHexString()
-        
-        if(type == "SHA1"){
-            serverCertSha = serverCertData.sha1().toHexString()
+        let certificateCount = SecTrustGetCertificateCount(trust)
+        guard certificateCount > 0 else {
+            throw AFError.serverTrustEvaluationFailed(
+                reason: .noCertificatesFound
+            )
         }
         
         var isSecure = false
@@ -39,9 +39,28 @@ final class CertificateSHAFingerprintTrustEvaluator: ServerTrustEvaluating {
             val.replacingOccurrences(of: " ", with: "")
         }
         
-        isSecure = fps.contains(where: { (value) -> Bool in
-            value.caseInsensitiveCompare(serverCertSha) == .orderedSame
-        })
+        // Check all certificates in the chain
+        for index in 0..<certificateCount {
+            guard let certificate = SecTrustGetCertificateAtIndex(trust, index) else {
+                continue
+            }
+            
+            let serverCertData = SecCertificateCopyData(certificate) as Data
+            var serverCertSha = serverCertData.sha256().toHexString()
+            
+            if(type == "SHA1"){
+                serverCertSha = serverCertData.sha1().toHexString()
+            }
+            
+            isSecure = fps.contains(where: { (value) -> Bool in
+                value.caseInsensitiveCompare(serverCertSha) == .orderedSame
+            })
+            
+            // If we found a match, break out of the loop
+            if isSecure {
+                break
+            }
+        }
         
         if !isSecure {
             throw AFError.serverTrustEvaluationFailed(

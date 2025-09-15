@@ -41,7 +41,7 @@ public class HttpCertificatePinningPlugin : FlutterPlugin, MethodCallHandler {
   }
 
 
-  override fun onMethodCall(@NonNull call: MethodCall, @NonNull result: Result) {
+  override fun onMethodCall(call: MethodCall, result: Result) {
     try {
       when (call.method) {
         "check" -> threadExecutorService?.execute {
@@ -58,11 +58,11 @@ public class HttpCertificatePinningPlugin : FlutterPlugin, MethodCallHandler {
 
   private fun handleCheckEvent(call: MethodCall, result: Result) {
     val arguments: HashMap<String, Any> = call.arguments as HashMap<String, Any>
-    val serverURL: String = arguments.get("url") as String
+    val serverURL: String = arguments["url"] as String
     val allowedFingerprints: List<String> = arguments.get("fingerprints") as List<String>
     val httpHeaderArgs: Map<String, String> = arguments.get("headers") as Map<String, String>
-    val timeout: Int = arguments.get("timeout") as Int
-    val type: String = arguments.get("type") as String
+    val timeout: Int = arguments["timeout"] as Int
+    val type: String = arguments["type"] as String
 
     try {
       if (this.checkConnexion(serverURL, allowedFingerprints, httpHeaderArgs, timeout, type)) {
@@ -95,12 +95,14 @@ public class HttpCertificatePinningPlugin : FlutterPlugin, MethodCallHandler {
 
 
   private fun checkConnexion(serverURL: String, allowedFingerprints: List<String>, httpHeaderArgs: Map<String, String>, timeout: Int, type: String): Boolean {
-    val sha: String = this.getFingerprint(serverURL, timeout, httpHeaderArgs, type)
-    return allowedFingerprints.map { fp -> fp.uppercase().replace("\\s".toRegex(), "") }.contains(sha)
+    val sha: List<String> = this.getFingerprint(serverURL, timeout, httpHeaderArgs, type)
+    val normalizedFingerprints = allowedFingerprints.map { fp -> fp.uppercase().replace(Regex("\\s"), "") }
+    
+    return sha.any { serverFingerprint -> normalizedFingerprints.contains(serverFingerprint) }
   }
 
   @Throws(IOException::class, NoSuchAlgorithmException::class, CertificateException::class, CertificateEncodingException::class, SocketTimeoutException::class)
-  private fun getFingerprint(httpsURL: String, connectTimeout: Int, httpHeaderArgs: Map<String, String>, type: String): String {
+  private fun getFingerprint(httpsURL: String, connectTimeout: Int, httpHeaderArgs: Map<String, String>, type: String): List<String> {
 
     val url = URL(httpsURL)
     val httpClient: HttpsURLConnection = url.openConnection() as HttpsURLConnection
@@ -110,16 +112,15 @@ public class HttpCertificatePinningPlugin : FlutterPlugin, MethodCallHandler {
 
     httpClient.connect()
 
-    val cert: Certificate = httpClient.serverCertificates[0] as Certificate
-    return this.hashString(type, cert.encoded)
+    val certs: Array<Certificate> = httpClient.serverCertificates;
+    val shaList : List<String> = certs.map { el -> this.hashString(type, el.encoded) }
+    return shaList
   }
 
   private fun hashString(type: String, input: ByteArray) =
-          MessageDigest
-                  .getInstance(type)
-                  .digest(input)
-                  .map { String.format("%02X", it) }
-                  .joinToString(separator = "")
+    MessageDigest
+      .getInstance(type)
+      .digest(input).joinToString(separator = "") { String.format("%02X", it) }
 
 
   override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {}
