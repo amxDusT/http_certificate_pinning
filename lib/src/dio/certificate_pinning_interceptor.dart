@@ -9,12 +9,27 @@ class CertificatePinningInterceptor extends Interceptor {
   final List<String> _allowedSHAFingerprints;
   final int _timeout;
   final bool callFollowingErrorInterceptor;
+
+  /// A function that takes the request URL as input and returns `true` if
+  /// certificate pinning validation should be skipped for that URL.
+  ///
+  /// This can be useful for excluding certain URLs from validation, such as
+  /// external services not under your control.
   final bool Function(String)? skipValidation;
+
+  /// Transforms the intercepted request URL into the canonical URL used for
+  /// certificate pinning verification.
+  ///
+  /// This is useful when the base URL normally requires authentication or
+  /// side effects that should be avoided during native TLS validation (e.g.
+  /// iOS performing a background request during certificate checks).
+  final String Function(String)? resolvePinnedUrl;
   Future<String>? secure = Future.value('');
 
   CertificatePinningInterceptor({
     List<String>? allowedSHAFingerprints,
     this.skipValidation,
+    this.resolvePinnedUrl,
     int timeout = 0,
     this.callFollowingErrorInterceptor = false,
   })  : _allowedSHAFingerprints = allowedSHAFingerprints != null
@@ -38,11 +53,13 @@ class CertificatePinningInterceptor extends Interceptor {
       if (options.path.contains('http') || options.baseUrl.isEmpty) {
         baseUrl = options.path;
       }
-      
-      if(skipValidation != null && skipValidation!(baseUrl)){
+
+      if (skipValidation != null && skipValidation!(baseUrl)) {
         return super.onRequest(options, handler);
       }
-      
+      if (resolvePinnedUrl != null) {
+        baseUrl = resolvePinnedUrl!(baseUrl);
+      }
       secure = HttpCertificatePinning.check(
         serverURL: baseUrl,
         headerHttp: {},
