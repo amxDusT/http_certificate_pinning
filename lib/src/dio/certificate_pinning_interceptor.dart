@@ -62,7 +62,9 @@ class CertificatePinningInterceptor extends Interceptor {
       }
       secure = HttpCertificatePinning.check(
         serverURL: baseUrl,
-        headerHttp: {},
+        headerHttp: {
+          'X-From': 'Flutter-Certificate-Pinning',
+        },
         sha: SHA.SHA256,
         allowedSHAFingerprints: _allowedSHAFingerprints,
         timeout: _timeout,
