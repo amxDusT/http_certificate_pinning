@@ -67,7 +67,7 @@ public class HttpCertificatePinningPlugin: NSObject, FlutterPlugin {
 
         manager.session.configuration.timeoutIntervalForRequest = TimeInterval(timeout)
 
-        manager.request(urlString, method: .get, parameters: headers).validate().responseData() { response in
+        manager.request(urlString, method: .get, headers: HTTPHeaders(headers)).validate().responseData() { response in
             switch response.result {
             case .success:
                 flutterResult("CONNECTION_SECURE")
