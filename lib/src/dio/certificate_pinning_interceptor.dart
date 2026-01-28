@@ -86,24 +86,30 @@ class CertificatePinningInterceptor extends Interceptor {
     } on Exception catch (e) {
       dynamic error;
 
-      if (e is PlatformException && e.code == 'CONNECTION_NOT_SECURE') {
-        error = const CertificateNotVerifiedException();
-      } else if (e is PlatformException && e.code == 'NO_INTERNET') {
-        return handler.reject(
+      error = switch (e) {
+        PlatformException(code: 'CONNECTION_NOT_SECURE') =>
+          const CertificateNotVerifiedException(),
+        PlatformException(code: 'NO_INTERNET' || 'NETWORK_ERROR') =>
           DioException.connectionError(
             requestOptions: options,
-            reason: 'NO_INTERNET',
+            reason: e.code,
+            error: e.code,
           ),
-        );
-      } else {
-        error = CertificateCouldNotBeVerifiedException(e);
-      }
+        PlatformException(code: 'TIMEOUT') => DioException.connectionTimeout(
+            requestOptions: options,
+            timeout: Duration(milliseconds: _timeout),
+            error: e.code,
+          ),
+        _ => CertificateCouldNotBeVerifiedException(e),
+      };
 
       handler.reject(
-        DioException(
-          requestOptions: options,
-          error: error,
-        ),
+        error is DioException
+            ? error
+            : DioException(
+                requestOptions: options,
+                error: error,
+              ),
         callFollowingErrorInterceptor,
       );
     }

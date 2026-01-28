@@ -75,6 +75,41 @@ public class HttpCertificatePinningPlugin: NSObject, FlutterPlugin {
             case .failure(let error):
                 if let responseCode = error.responseCode, (200...599).contains(responseCode) {
                     flutterResult("CONNECTION_SECURE")
+                } else if let urlError = error.underlyingError as? URLError {
+                    switch urlError.code {
+                        case .notConnectedToInternet, .networkConnectionLost:
+                            flutterResult(
+                                FlutterError(
+                                    code: "NO_INTERNET",
+                                    message: "No Internet Connection",
+                                    details: urlError.localizedDescription
+                                )
+                            )
+                        case .timedOut:
+                            flutterResult(
+                                FlutterError(
+                                    code: "TIMEOUT",
+                                    message: "Connection Timeout",
+                                    details: urlError.localizedDescription
+                                )
+                            )
+                        case .cannotFindHost, .cannotConnectToHost, .dnsLookupFailed:
+                            flutterResult(
+                                FlutterError(
+                                    code: "NETWORK_ERROR",
+                                    message: "Network Error",
+                                    details: urlError.localizedDescription
+                                )
+                            )
+                        default:
+                            flutterResult(
+                                FlutterError(
+                                    code: "CONNECTION_NOT_SECURE",
+                                    message: error.localizedDescription,
+                                    details: nil
+                                )
+                            )
+                    }
                 } else {
                     flutterResult(
                         FlutterError(
